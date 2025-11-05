@@ -1,0 +1,20 @@
+# Exclude system and development files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Exclude Git-related files
+.git
+.gitignore
+README.md
+
+# Exclude model weights if you want smaller image
+# (optional — only uncomment if model is too large)
+# best.pt
