@@ -1,55 +1,40 @@
-🌾 AgriVision
+# 🌾 AgriVision
 
+## Overivew 
+AgriVision is an AI-powered field application that uses computer vision (YOLO) to analyze crop health and provide real-time insights
 AI-Powered Smart Detection of Crop Stress & Pests
 AgriVision uses YOLOv8 to detect abiotic stress, insects, and plant diseases in agricultural images and drone videos.
 It runs on laptop & mobile (PWA), works offline, and can be deployed on the cloud (Streamlit Sharing / Docker).
+
 ---
-📂 Project Structure
-agrivision/
-│── field_app.py          # Streamlit app (image + video detection)
+## 📂 Project Structure
+```plaintext
+Agrivision/
+│── Apps/                  
+     └──                  # Contains the app.py files (image + video detection)
 │── requirements.txt      # Python dependencies
 │── Dockerfile            # Container build file
 │── .dockerignore         # Ignore unnecessary files in Docker builds
 │── manifest.json         # PWA manifest
 │── service-worker.js     # PWA service worker
-│── models/
-│   └── best.pt           # Trained YOLOv8 model (add this after training)
-│── assets/
-│   ├── icon-192.png      # PWA icon (192px)
-│   └── icon-512.png      # PWA icon (512px)
-│── notebooks/
+│── model/
+│   └── best.pt          # Trained YOLOv8 model 
+│── images/
+│     └──                # contains images
+│── notebook/
 │   └── training.ipynb    # Training process (YOLOv8 notebook)
+```
 ---
-🧠 Add Your Trained Model (best.pt)
 
-The app needs the trained YOLOv8 weights to make detections.
-
-Option 1: Download from Colab
-
-Train the model using notebooks/training.ipynb.
-
-After training, YOLO saves best.pt (usually at /content/runs/detect/trainX/weights/best.pt).
-
-Download it from Colab:
-
-from google.colab import files
-files.download('/content/runs/detect/train7/weights/best.pt')
-
-
-Move it into the models/ folder:
-
-agrivision/models/best.pt
-
-Option 2: Copy Directly in Colab
-!cp /content/runs/detect/train7/weights/best.pt /content/agrivision/models/
----
-⚙️ Installation
+## ⚙️ Installation
 Local Setup
-git clone https://github.com/yourusername/agrivision.git
+**Clone the Repository**:
+   ```bash
+git clone https://github.com/JOEL-TAMAKLOE/agrivision.git
 cd agrivision
 pip install -r requirements.txt
 streamlit run field_app.py
-
+```
 
 Open in your browser at: http://localhost:8501
 ---
@@ -79,7 +64,7 @@ Click “Install App” (in browser menu).
 
 The app now works like a native app with offline caching.
 ---
-🎥 Features
+## 🎥 Features
 
 ✅ Detects crop diseases, pests, abiotic stress
 ✅ Works on images & videos
@@ -89,7 +74,10 @@ The app now works like a native app with offline caching.
 ✅ Mobile + Laptop support (PWA responsive design)
 ✅ Runs offline (PWA + Docker)
 
-📸 Screenshots
+
+---
+
+## 📸 Screenshots
 
 🔹 App Home
 
@@ -99,10 +87,11 @@ The app now works like a native app with offline caching.
 
 🔹 Video + Map Replay
 
+---
 
-📌 Roadmap
+## 📌 Roadmap
+![roadmap](images/visionflow.png)
 
- Add real-time drone video streaming
 
  Train with larger datasets for better accuracy
 
@@ -110,10 +99,10 @@ The app now works like a native app with offline caching.
 
  Deploy on mobile edge devices
 ---
-🤝 Contributing
+## 🤝 Contributing
+Contributions are welcome! If you have suggestions for improvements, please fork the repository and create a pull request. For major changes, please open an issue first to discuss what you would like to change.
 
-Pull requests are welcome!
-
-📜 License
+---
+## 📜 License
 
 MIT License 
