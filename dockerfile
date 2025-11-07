@@ -2,18 +2,17 @@
 # 🐍 AgriVision Dockerfile
 # --------------------------------------------------------
 # Use an official lightweight Python image
-FROM python:3.9-slim
+FROM python:3.10-slim
 
-# Set the working directory inside the container
+# --------------------------------------------------------
+# 📁 Set the working directory inside the container
+# --------------------------------------------------------
 WORKDIR /app
 
-# Copy project files into the container
-COPY . /app
-
 # --------------------------------------------------------
-# 🧱 Install system dependencies required by OpenCV & Ultralytics
+# ⚙️ Install system dependencies required by OpenCV, Ultralytics & Pillow
 # --------------------------------------------------------
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
@@ -22,17 +21,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # --------------------------------------------------------
-# 📦 Install Python dependencies
+# 📦 Copy only requirements file first (for better caching)
+# --------------------------------------------------------
+COPY requirements.txt .
+
+# --------------------------------------------------------
+# 🧰 Upgrade pip safely
 # --------------------------------------------------------
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
 
 # --------------------------------------------------------
-# 🌐 Expose Streamlit port
-# --------------------------------------------------------
-EXPOSE 8501
-
-# --------------------------------------------------------
-# 🚀 Run the Streamlit app
-# --------------------------------------------------------
-CMD ["streamlit", "run", "field_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# 🔧 Install Python dependencies with timeo
