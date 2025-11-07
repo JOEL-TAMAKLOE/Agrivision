@@ -31,4 +31,21 @@ COPY requirements.txt .
 RUN pip install --upgrade pip
 
 # --------------------------------------------------------
-# 🔧 Install Python dependencies with timeo
+# 🔧 Install Python dependencies
+# --------------------------------------------------------
+RUN pip install --no-cache-dir -r requirements.txt
+
+# --------------------------------------------------------
+# 📂 Copy the rest of the project files
+# --------------------------------------------------------
+COPY . .
+
+# --------------------------------------------------------
+# 🌐 Expose Streamlit port
+# --------------------------------------------------------
+EXPOSE 8501
+
+# --------------------------------------------------------
+# 🚀 Run the Streamlit app
+# --------------------------------------------------------
+CMD ["streamlit", "run", "field_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
