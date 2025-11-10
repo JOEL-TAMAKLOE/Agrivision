@@ -27,7 +27,7 @@ if RUNNING_IN_STREAMLIT:
 
 def local_mode(source=0, model_path="best.pt", conf=0.25, imgsz=640, save_csv=False, out_csv="webcam_detections.csv"):
     import cv2
-    model = YOLO(model_path)
+    model = YOLO("model/best.pt")
 
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
