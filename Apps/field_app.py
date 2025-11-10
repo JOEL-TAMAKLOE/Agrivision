@@ -1,3 +1,5 @@
+import os
+os.environ["YOLO_CONFIG_DIR"] = "/tmp/Ultralytics"
 import streamlit as st
 from ultralytics import YOLO
 import cv2, time, pandas as pd, numpy as np, os, re, platform, subprocess
