@@ -13,15 +13,18 @@ Agrivision/
 │── Apps/                  
      └──                  # Contains the app.py files (image + video detection)
 │── images/
-     └──                # contains images
+     └──                  # contains images
 │── model/
-   └── best.pt          # Trained YOLOv8 model 
+   └── best.pt            # Trained YOLOv8 model 
 │── notebook/
-   └── training.ipynb    # Training process (YOLOv8 notebook)
-│── requirements.txt      # Python dependencies
+   └── training.ipynb     # Training process (YOLOv8 notebook)
+│── .gitattributes        # Specifies handling for git
+│── READme.md             # Scope of the project
 │── Dockerfile            # Container build file
 │── .dockerignore         # Ignore unnecessary files in Docker builds
 │── manifest.json         # PWA manifest
+│── packages.txt          # contains dependencies for missing streamlit libs
+│── requirements.txt      # Python dependencies
 │── service-worker.js     # PWA service worker
 
 
