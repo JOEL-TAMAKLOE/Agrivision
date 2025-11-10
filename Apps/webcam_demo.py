@@ -1,23 +1,34 @@
-# webcam_demo.py
 """
-Low-latency local demo for AgriVision.
-Runs YOLOv8 inference on a webcam or RTSP/HTTP stream using OpenCV windows (cv2.imshow).
-Press 'q' to quit. Optionally save detections to CSV with --save.
+AgriVision Webcam Demo
+-----------------------
+This script supports both:
+1️⃣ Local OpenCV-based webcam streaming
+2️⃣ Streamlit Cloud-friendly mode using browser camera input
+
+Press 'q' to quit in local mode.
 """
 
-from ultralytics import YOLO
-import cv2
+import os
+import argparse
 import time
 import pandas as pd
 from datetime import datetime
-import argparse
-import os
 
-def main(source=0, model_path="models/best.pt", conf=0.25, imgsz=640, save_csv=False, out_csv="webcam_detections.csv"):
-    # Load model
+# Import model
+from ultralytics import YOLO
+
+# Detect environment
+RUNNING_IN_STREAMLIT = os.getenv("STREAMLIT_RUNTIME") is not None
+
+if RUNNING_IN_STREAMLIT:
+    import streamlit as st
+    from PIL import Image
+    import numpy as np
+
+def local_mode(source=0, model_path="best.pt", conf=0.25, imgsz=640, save_csv=False, out_csv="webcam_detections.csv"):
+    import cv2
     model = YOLO(model_path)
 
-    # Open video source
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         print(f"[ERROR] Could not open source: {source}")
@@ -29,23 +40,17 @@ def main(source=0, model_path="models/best.pt", conf=0.25, imgsz=640, save_csv=F
         while True:
             ret, frame = cap.read()
             if not ret:
-                # Wait briefly for network cameras or hiccups
                 time.sleep(0.1)
                 continue
 
-            # Run YOLO inference (frame is BGR numpy array)
             results = model.predict(frame, conf=conf, imgsz=imgsz, verbose=False)
-
-            # Annotated overlay (BGR)
             try:
                 overlay = results[0].plot()
             except Exception:
                 overlay = frame
 
-            # Show overlay window
             cv2.imshow("AgriVision - Live Demo (press q to quit)", overlay)
 
-            # Collect detection rows (if any)
             if results and hasattr(results[0], "boxes") and len(results[0].boxes) > 0:
                 res = results[0]
                 names = res.names if hasattr(res, "names") else model.names
@@ -63,12 +68,8 @@ def main(source=0, model_path="models/best.pt", conf=0.25, imgsz=640, save_csv=F
                         "x2": round(xyxy[2], 2),
                         "y2": round(xyxy[3], 2)
                     })
-
             frame_idx += 1
-
-            # Key handling
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
     finally:
@@ -79,15 +80,39 @@ def main(source=0, model_path="models/best.pt", conf=0.25, imgsz=640, save_csv=F
             df.to_csv(out_csv, index=False)
             print(f"[INFO] Saved detections to {out_csv}")
 
-if __name__ == "__main__":
+def streamlit_mode(model_path="best.pt", conf=0.25, imgsz=640):
+    st.title("📸 AgriVision – Streamlit Camera Mode")
+    st.write("Use your browser camera to capture and analyze an image.")
+
+    model = YOLO(model_path)
+    img_file_buffer = st.camera_input("Take a photo")
+
+    if img_file_buffer is not None:
+        image = Image.open(img_file_buffer)
+        img_array = np.array(image)
+
+        # Run inference
+        results = model.predict(img_array, conf=conf, imgsz=imgsz, verbose=False)
+        annotated = results[0].plot()
+
+        st.image(annotated, caption="Prediction", use_column_width=True)
+
+        st.success("✅ Detection complete!")
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=str, default="0", help="0 for webcam or RTSP/HTTP URL")
-    parser.add_argument("--model", type=str, default="models/best.pt", help="Path to best.pt")
+    parser.add_argument("--model", type=str, default="best.pt", help="Path to YOLO model file")
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold")
-    parser.add_argument("--imgsz", type=int, default=640, help="Inference image size")
-    parser.add_argument("--save", action="store_true", help="Save detections CSV on exit")
+    parser.add_argument("--imgsz", type=int, default=640, help="Image size for inference")
+    parser.add_argument("--save", action="store_true", help="Save detections to CSV (local only)")
     args = parser.parse_args()
 
-    # If source looks like a digit, convert to int for webcam
-    src = int(args.source) if args.source.isdigit() else args.source
-    main(source=src, model_path=args.model, conf=args.conf, imgsz=args.imgsz, save_csv=args.save)
+    if RUNNING_IN_STREAMLIT:
+        streamlit_mode(args.model, args.conf, args.imgsz)
+    else:
+        src = int(args.source) if args.source.isdigit() else args.source
+        local_mode(src, args.model, args.conf, args.imgsz, args.save)
+
+if __name__ == "__main__":
+    main()
