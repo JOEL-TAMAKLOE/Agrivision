@@ -1,0 +1,16 @@
+[server]
+headless = true           # Run without opening a browser
+enableCORS = false        # Avoid cross-origin issues
+port = 8501               # Standard Streamlit port
+
+[global]
+# Optional: cache directory to speed up model loading
+# Useful if running locally with large YOLO models
+cacheDir = ".streamlit/cache"
+
+[theme]
+base = "light"
+primaryColor = "#4CAF50"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#000000"
