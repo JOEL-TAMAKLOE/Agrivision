@@ -12,17 +12,19 @@ It runs on laptop & mobile (PWA), works offline, and can be deployed on the clou
 Agrivision/
 │── Apps/                  
      └──                  # Contains the app.py files (image + video detection)
+│── images/
+     └──                # contains images
+│── model/
+   └── best.pt          # Trained YOLOv8 model 
+│── notebook/
+   └── training.ipynb    # Training process (YOLOv8 notebook)
 │── requirements.txt      # Python dependencies
 │── Dockerfile            # Container build file
 │── .dockerignore         # Ignore unnecessary files in Docker builds
 │── manifest.json         # PWA manifest
 │── service-worker.js     # PWA service worker
-│── model/
-│   └── best.pt          # Trained YOLOv8 model 
-│── images/
-│     └──                # contains images
-│── notebook/
-│   └── training.ipynb    # Training process (YOLOv8 notebook)
+
+
 ```
 ---
 
