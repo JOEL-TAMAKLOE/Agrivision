@@ -29,9 +29,9 @@ if ('serviceWorker' in navigator) {
 @st.cache_resource
 def load_model():
     try:
-        return YOLO("models/best.pt")
+        return YOLO("model/best.pt")
     except Exception as e:
-        st.error(f"❌ Could not load YOLO model at models/best.pt. Please add it. Error: {e}")
+        st.error(f"❌ Could not load YOLO model at model/best.pt. Please add it. Error: {e}")
         st.stop()
 
 model = load_model()
