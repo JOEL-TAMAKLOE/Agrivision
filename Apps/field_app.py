@@ -211,11 +211,11 @@ else:
     st.subheader("🎦 Live Webcam Detection Mode")
     st.markdown("Detect crop issues in real-time using your webcam.")
 
-    # Check if running locally (no cloud environment variable)
+    # Detect if running locally or in Streamlit Cloud
     is_local = not any(env in os.environ for env in ["STREAMLIT_SERVER_PORT", "STREAMLIT_RUNTIME"])
-    
-    # 1️⃣ Cloud mode – use browser camera
+
     if not is_local:
+        # 🌐 Cloud mode – snapshot only
         st.info("🌐 Running in cloud mode. Using browser camera snapshots for detection.")
         camera_input = st.camera_input("Take a snapshot")
         if camera_input:
@@ -223,33 +223,39 @@ else:
             results = model.predict(img, conf=conf_thres, imgsz=imgsz, verbose=False)
             plotted = results[0].plot()
             st.image(cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB), caption="Detection Result", use_column_width=True)
+        st.warning("⚠️ Full live webcam feed is only available when running locally. Offline LiveCam is disabled here.")
 
-    # 2️⃣ Local mode – offer full live feed + offline script
     else:
-        st.success("💻 Running locally. You can use your webcam in live feed mode or open the offline live cam app.")
+        # 💻 Local mode – full live feed + offline script
+        st.success("💻 Running locally. You can use your webcam in live feed mode or open the offline LiveCam app.")
 
         colA, colB = st.columns(2)
         with colA:
+            st.markdown("**Start in-app Live Feed:**")
             if st.button("🎥 Start Live Feed (in-app)"):
                 cap = cv2.VideoCapture(0)
                 stframe = st.empty()
+                stop = False
                 while True:
                     ret, frame = cap.read()
                     if not ret:
+                        st.warning("⚠️ Could not access webcam.")
                         break
                     results = model.predict(frame, conf=conf_thres, imgsz=imgsz, verbose=False)
                     overlay = results[0].plot()
                     stframe.image(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB), channels="RGB")
                     if st.button("⏹ Stop"):
+                        stop = True
+                    if stop:
                         break
                 cap.release()
 
         with colB:
-            st.markdown("Or open the dedicated offline mode app below:")
-            if st.button("🧭 Run Offline LiveCam (webcam_demo.py)"):
-                script_path = os.path.join(os.getcwd(), "webcam_demo.py")
-                if os.path.exists(script_path):
+            st.markdown("**Or open the dedicated offline LiveCam app:**")
+            script_path = os.path.join(os.getcwd(), "webcam_demo.py")
+            if os.path.exists(script_path):
+                if st.button("🧭 Run Offline LiveCam (webcam_demo.py)"):
                     subprocess.Popen(["python", script_path], shell=True)
                     st.success("✅ Offline LiveCam opened in a new window.")
-                else:
-                    st.error("❌ webcam_demo.py not found. Please ensure it’s in the same directory.")
+            else:
+                st.error("❌ webcam_demo.py not found. Please ensure it’s in the same directory.")
