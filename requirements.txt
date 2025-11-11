@@ -1,22 +1,11 @@
-# --- Streamlit core ---
-streamlit==1.36.0
-streamlit-folium==0.17.4
-
-# --- YOLO + dependencies ---
-ultralytics==8.2.0
-
-# --- Computer vision + image handling ---
-opencv-python-headless==4.9.0.80
-Pillow==10.2.0
-
-# --- Data handling ---
-pandas==2.2.2
-numpy==1.26.4
-
-# --- Mapping + visualization ---
-folium==0.15.1
-branca==0.7.2
-heatmapz==0.0.5
-
-# --- Utilities ---
-python-dateutil==2.9.0
+streamlit
+streamlit-folium
+ultralytics
+opencv-python-headless
+Pillow
+pandas
+numpy
+folium
+branca
+heatmapz
+python-dateutil
