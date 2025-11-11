@@ -1,21 +1,22 @@
-# --- Streamlit core ---
+# Streamlit core
 streamlit==1.36.0
 streamlit-folium==0.17.4
+rich==14.2.0
 
-# --- YOLO (lightweight) ---
-ultralytics==8.0.196    # lighter than 8.2.x for cloud deployment
+# YOLO
+ultralytics==8.0.196
 
-# --- Computer vision + image handling ---
+# Computer vision
 opencv-python-headless==4.9.0.80
 Pillow==10.2.0
 
-# --- Data handling ---
+# Data handling
 pandas==2.2.2
 numpy==1.26.4
 
-# --- Mapping + visualization ---
+# Mapping + visualization
 folium==0.15.1
 branca==0.7.2
 
-# --- Utilities ---
+# Utilities
 python-dateutil==2.9.0
