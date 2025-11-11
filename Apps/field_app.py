@@ -252,7 +252,7 @@ else:
 
         with colB:
             st.markdown("**Or open the dedicated offline LiveCam app:**")
-            script_path = os.path.join(os.getcwd(), "webcam_demo.py")
+            script_path = os.path.join(os.path.dirname(__file__), "webcam_demo.py")
             if os.path.exists(script_path):
                 if st.button("🧭 Run Offline LiveCam (webcam_demo.py)"):
                     subprocess.Popen(["python", script_path], shell=True)
