@@ -88,6 +88,7 @@ if mode == "📸 Image":
     image_source = st.file_uploader("📷 Upload an image (jpg/png)", type=["jpg", "jpeg", "png"])
     if image_source:
         img = Image.open(image_source).convert("RGB")
+        img_np = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
         results = model.predict(img, conf=conf_thres, imgsz=imgsz, verbose=False)
 
         col1, col2 = st.columns(2)
