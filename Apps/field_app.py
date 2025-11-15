@@ -1,8 +1,16 @@
+# Apps/field_app.py
 import os
 os.environ["YOLO_CONFIG_DIR"] = "/tmp/Ultralytics"
+
 import streamlit as st
 from ultralytics import YOLO
-import cv2, time, pandas as pd, numpy as np, os, re, platform, subprocess
+import cv2
+import time
+import pandas as pd
+import numpy as np
+import re
+import subprocess
+import platform
 import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
@@ -10,49 +18,30 @@ from datetime import datetime
 from PIL import Image
 from tempfile import NamedTemporaryFile
 
-# ----------------------------
-# Inject PWA manifest + service worker
-# ----------------------------
-st.markdown("""
-<link rel="manifest" href="/manifest.json">
-<script>
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register("/service-worker.js")
-    .then(() => console.log("✅ Service Worker Registered"));
-}
-</script>
-""", unsafe_allow_html=True)
+# ------------------------------------------------------------------
+# Utility helpers
+# ------------------------------------------------------------------
+def get_app_dir():
+    """Return directory where this file lives (reliable for script-relative resources)."""
+    return os.path.dirname(__file__)
 
-# ----------------------------
-# Load YOLO model
-# ----------------------------
-@st.cache_resource
-def load_model():
-    try:
-        return YOLO("model/best.pt")
-    except Exception as e:
-        st.error(f"❌ Could not load YOLO model at model/best.pt. Please add it. Error: {e}")
-        st.stop()
+def is_running_locally():
+    """
+    Decide if app is running locally (developer machine) or in Streamlit Cloud.
+    Streamlit cloud environment sets some env vars; this heuristic works well.
+    """
+    # If HOME contains 'appuser' it's likely the cloud image user. Another robust method
+    # is to detect STREAMLIT_RUNTIME or STREAMLIT_SERVER_PORT, but those can be present locally.
+    # We'll use a conservative check:
+    home = os.environ.get("HOME", "")
+    if "appuser" in home or "streamlit" in home:
+        return False
+    # If running on Windows or macOS, it's almost certainly local
+    if platform.system().lower() in ("windows", "darwin"):
+        return True
+    # Otherwise, default to True if common local envs are present
+    return True
 
-model = load_model()
-
-# ----------------------------
-# App title
-# ----------------------------
-st.title("🌾 AgriVision: Smart Detection of Crop Stress & Pests")
-st.write("Detects abiotic stress, insects, and diseases from field **images**, **drone footage**, or **live webcam feeds**.")
-
-# ----------------------------
-# Sidebar settings
-# ----------------------------
-st.sidebar.header("⚙️ Inference Settings")
-conf_thres = st.sidebar.slider("Confidence threshold", 0.0, 1.0, 0.25, 0.01)
-imgsz = st.sidebar.select_slider("Inference image size", options=[320, 416, 512, 640, 768, 960], value=640)
-frame_skip = st.sidebar.number_input("Sample every Nth frame (video)", min_value=1, max_value=30, value=3)
-
-# ----------------------------
-# Helper: Convert YOLO results -> DataFrame rows
-# ----------------------------
 def results_to_rows(results, frame_idx=0, gps=None):
     rows = []
     boxes = results[0].boxes
@@ -76,9 +65,96 @@ def results_to_rows(results, frame_idx=0, gps=None):
             ])
     return rows
 
-# ----------------------------
-# Mode selection
-# ----------------------------
+def parse_srt_for_gps_and_altitude(srt_text):
+    """
+    Try to parse SRT text for GPS and optional Altitude.
+    Returns list of tuples (lat, lon, alt_or_none) indexed by caption order.
+    """
+    gps_entries = []
+    # Look for lines like "GPS: 5.6037, -0.1870" or "GPS:lat,lon" and "Altitude: 15.5 m"
+    latlon_pattern = re.compile(r"GPS[:\s]*([-\d\.]+)[,\s]+([-\d\.]+)")
+    alt_pattern = re.compile(r"Altitude[:\s]*([-\d\.]+)")
+    # split into caption blocks
+    blocks = re.split(r"\n\s*\n", srt_text.strip())
+    for blk in blocks:
+        lat, lon, alt = None, None, None
+        m = latlon_pattern.search(blk)
+        if m:
+            try:
+                lat = float(m.group(1))
+                lon = float(m.group(2))
+            except:
+                lat, lon = None, None
+        m2 = alt_pattern.search(blk)
+        if m2:
+            try:
+                alt = float(m2.group(1))
+            except:
+                alt = None
+        if lat is not None and lon is not None:
+            gps_entries.append((lat, lon, alt))
+    return gps_entries
+
+def height_advisory_bar(altitude_m: float):
+    """Render a small HTML bar to advise about altitude."""
+    if altitude_m is None:
+        st.info("No altitude metadata found for this video.")
+        return
+    # clamp and compute percent of a max (60m)
+    max_height = 60.0
+    pct = min(max(altitude_m / max_height * 100.0, 0.0), 100.0)
+    if altitude_m < 10:
+        color = "#e63946"  # red
+        status = f"Too Low — may miss context ({altitude_m:.1f} m)"
+    elif altitude_m > 30:
+        color = "#f4a261"  # orange
+        status = f"Too High — may reduce fine-detail detection ({altitude_m:.1f} m)"
+    else:
+        color = "#2a9d8f"  # green
+        status = f"Optimal altitude for crop-level detection ({altitude_m:.1f} m)"
+    st.markdown(f"""
+    <div style='width:100%;background:#e9ecef;border-radius:8px;height:14px;'>
+      <div style='width:{pct}%;background:{color};height:14px;border-radius:8px;'></div>
+    </div>
+    <div style='text-align:center;font-weight:600;margin-top:6px;color:{color}'>{status}</div>
+    """, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------
+# Load model (cached)
+# ------------------------------------------------------------------
+@st.cache_resource
+def load_model():
+    try:
+        # model path relative to this file
+        model_path = os.path.join(get_app_dir(), "..", "model", "best.pt")
+        model_path = os.path.normpath(model_path)
+        if not os.path.exists(model_path):
+            # try alternative (root-level model/)
+            alt = os.path.join(os.getcwd(), "model", "best.pt")
+            if os.path.exists(alt):
+                model_path = alt
+        return YOLO(model_path)
+    except Exception as e:
+        st.error(f"❌ Could not load YOLO model at model/best.pt. Please add it. Error: {e}")
+        st.stop()
+
+# load once
+model = load_model()
+
+# ------------------------------------------------------------------
+# App UI
+# ------------------------------------------------------------------
+st.set_page_config(page_title="AgriVision", layout="wide")
+st.title("🌾 AgriVision: Smart Detection of Crop Stress & Pests")
+st.write("Detects abiotic stress, insects, and diseases from field **images**, **drone footage**, or **live webcam feeds**.")
+
+# Sidebar settings
+st.sidebar.header("⚙️ Inference Settings")
+conf_thres = st.sidebar.slider("Confidence threshold", 0.0, 1.0, 0.25, 0.01)
+imgsz = st.sidebar.select_slider("Inference image size", options=[320, 416, 512, 640, 768, 960], value=640)
+frame_skip = st.sidebar.number_input("Sample every Nth frame (video)", min_value=1, max_value=30, value=3)
+
+# Mode
 mode = st.radio("Choose input type:", ["📸 Image", "🎥 Video", "🎦 Live Webcam"], horizontal=True)
 
 # ----------------------------
@@ -87,16 +163,33 @@ mode = st.radio("Choose input type:", ["📸 Image", "🎥 Video", "🎦 Live We
 if mode == "📸 Image":
     image_source = st.file_uploader("📷 Upload an image (jpg/png)", type=["jpg", "jpeg", "png"])
     if image_source:
-        img = Image.open(image_source).convert("RGB")
-        img_np = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-        results = model.predict(img, conf=conf_thres, imgsz=imgsz, verbose=False)
+        try:
+            pil_img = Image.open(image_source).convert("RGB")
+        except Exception as e:
+            st.error(f"Could not open image: {e}")
+            st.stop()
 
+        # Convert PIL -> NumPy (RGB) -> BGR (expected by OpenCV / YOLO)
+        img_np = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+        # Run prediction
+        with st.spinner("Running detection..."):
+            results = model.predict(img_np, conf=conf_thres, imgsz=imgsz, verbose=False)
+
+        # Show original and detections
         col1, col2 = st.columns(2)
-        col1.image(img, caption="Original", use_column_width=True)
+        col1.image(pil_img, caption="Original", use_column_width=True)
 
-        plotted = results[0].plot()
-        col2.image(cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB), caption="Detections", use_column_width=True)
+        try:
+            plotted = results[0].plot()  # BGR image
+            # Convert to RGB for display
+            display_img = cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB)
+            col2.image(display_img, caption="Detections", use_column_width=True)
+        except Exception:
+            col2.info("Could not render overlay; showing original.")
+            col2.image(pil_img, use_column_width=True)
 
+        # Export detections
         rows = results_to_rows(results, frame_idx=0)
         if rows:
             df_img = pd.DataFrame(rows, columns=[
@@ -119,14 +212,20 @@ elif mode == "🎥 Video":
     srt_file = st.file_uploader("(Optional) Upload GPS sidecar (SRT file)", type=["srt"])
     gps_per_frame = []
 
-    # Parse GPS from SRT if available
+    # Parse SRT if available for GPS & altitude
+    avg_altitude = None
     if srt_file:
         try:
             srt_text = srt_file.read().decode("utf-8", errors="ignore")
-            gps_per_frame = []
-            for match in re.finditer(r"GPS:\\s*([-\d\\.]+),\\s*([-\d\\.]+)", srt_text):
-                gps_per_frame.append((float(match.group(1)), float(match.group(2))))
-            st.sidebar.success(f"Parsed {len(gps_per_frame)} GPS entries from SRT.")
+            gps_entries = parse_srt_for_gps_and_altitude(srt_text)
+            if gps_entries:
+                # gps_entries are (lat, lon, alt)
+                gps_per_frame = [(lat, lon) for (lat, lon, alt) in gps_entries]
+                # compute average altitude when available
+                alts = [alt for (_, _, alt) in gps_entries if alt is not None]
+                if alts:
+                    avg_altitude = float(np.mean(alts))
+                st.sidebar.success(f"Parsed {len(gps_entries)} GPS entries from SRT.")
         except Exception as e:
             st.sidebar.warning(f"Could not parse SRT file: {e}")
 
@@ -136,7 +235,9 @@ elif mode == "🎥 Video":
             tmp_path = tmp.name
 
         cap = cv2.VideoCapture(tmp_path)
-        frames, detections, frame_idx = [], [], 0
+        frames = []
+        detections = []
+        frame_idx = 0
         process_status = st.empty()
         process_status.info(f"⏳ Processing video (every {frame_skip} frame)...")
 
@@ -145,8 +246,12 @@ elif mode == "🎥 Video":
             if not ret:
                 break
             if frame_idx % frame_skip == 0:
+                # frame is BGR from OpenCV — ok to pass directly
                 results = model.predict(frame, conf=conf_thres, imgsz=imgsz, verbose=False)
-                overlay = results[0].plot()
+                try:
+                    overlay = results[0].plot()  # BGR image
+                except Exception:
+                    overlay = frame.copy()
                 frames.append(overlay)
                 gps_tuple = gps_per_frame[frame_idx] if frame_idx < len(gps_per_frame) else None
                 detections.extend(results_to_rows(results, frame_idx, gps_tuple))
@@ -164,14 +269,19 @@ elif mode == "🎥 Video":
             "Frame", "Timestamp", "Class", "Confidence", "x1", "y1", "x2", "y2", "Latitude", "Longitude"
         ])
 
+        # Show optional altitude advisory
+        if avg_altitude is not None:
+            st.subheader("📈 Flight altitude advisory")
+            height_advisory_bar(avg_altitude)
+
         st.subheader("🎥 Replay Mode (Video + Map Sync)")
         max_frame = int(df["Frame"].max())
         replay_frame = st.slider("Replay Frame", 0, max_frame, 0, 1)
         play = st.checkbox("▶️ Auto Play")
 
         video_col, map_col = st.columns([1.5, 1.5])
-
         if replay_frame < len(frames):
+            # frames are BGR — convert to RGB for display
             video_col.image(cv2.cvtColor(frames[replay_frame], cv2.COLOR_BGR2RGB),
                             caption=f"Frame {replay_frame}", use_column_width=True)
 
@@ -206,57 +316,87 @@ elif mode == "🎥 Video":
                            mime="text/csv")
 
 # ----------------------------
-# 🎦 LIVE WEBCAM MODE
+# LIVE WEBCAM MODE
 # ----------------------------
 else:
     st.subheader("🎦 Live Webcam Detection Mode")
     st.markdown("Detect crop issues in real-time using your webcam.")
 
-    # Detect if running locally or in Streamlit Cloud
-    is_local = not any(env in os.environ for env in ["STREAMLIT_SERVER_PORT", "STREAMLIT_RUNTIME"])
+    local = is_running_locally()
 
-    if not is_local:
-        # 🌐 Cloud mode – snapshot only
-        st.info("🌐 Running in cloud mode. Using browser camera snapshots for detection.")
+    if not local:
+        # Cloud mode — browser snapshot
+        st.info("🌐 Running in cloud mode. Use browser camera snapshots for detection.")
         camera_input = st.camera_input("Take a snapshot")
         if camera_input:
-            img = Image.open(camera_input)
-            results = model.predict(img, conf=conf_thres, imgsz=imgsz, verbose=False)
-            plotted = results[0].plot()
-            st.image(cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB), caption="Detection Result", use_column_width=True)
+            try:
+                pil_img = Image.open(camera_input).convert("RGB")
+                img_np = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+                with st.spinner("Running detection..."):
+                    results = model.predict(img_np, conf=conf_thres, imgsz=imgsz, verbose=False)
+                plotted = results[0].plot()
+                st.image(cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB), caption="Detection Result", use_column_width=True)
+            except Exception as e:
+                st.error(f"Error during snapshot detection: {e}")
         st.warning("⚠️ Full live webcam feed is only available when running locally. Offline LiveCam is disabled here.")
 
     else:
-        # 💻 Local mode – full live feed + offline script
+        # Local mode — allow in-app live feed and offline script
         st.success("💻 Running locally. You can use your webcam in live feed mode or open the offline LiveCam app.")
+
+        # Initialize session state for streaming
+        if "streaming" not in st.session_state:
+            st.session_state.streaming = False
 
         colA, colB = st.columns(2)
         with colA:
             st.markdown("**Start in-app Live Feed:**")
-            if st.button("🎥 Start Live Feed (in-app)"):
+            if not st.session_state.streaming:
+                if st.button("🎥 Start Live Feed (in-app)"):
+                    st.session_state.streaming = True
+                    st.experimental_rerun()  # re-render to show stop button
+            else:
+                if st.button("⏹ Stop Live Feed"):
+                    st.session_state.streaming = False
+                    st.experimental_rerun()
+
+            # If streaming, display frames
+            if st.session_state.streaming:
+                placeholder = st.empty()
                 cap = cv2.VideoCapture(0)
-                stframe = st.empty()
-                stop = False
-                while True:
-                    ret, frame = cap.read()
-                    if not ret:
-                        st.warning("⚠️ Could not access webcam.")
-                        break
-                    results = model.predict(frame, conf=conf_thres, imgsz=imgsz, verbose=False)
-                    overlay = results[0].plot()
-                    stframe.image(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB), channels="RGB")
-                    if st.button("⏹ Stop"):
-                        stop = True
-                    if stop:
-                        break
-                cap.release()
+                if not cap.isOpened():
+                    st.warning("⚠️ Could not access webcam.")
+                else:
+                    try:
+                        while st.session_state.streaming and cap.isOpened():
+                            ret, frame = cap.read()
+                            if not ret:
+                                st.warning("⚠️ Could not read frame from webcam.")
+                                break
+                            # frame is BGR already
+                            results = model.predict(frame, conf=conf_thres, imgsz=imgsz, verbose=False)
+                            try:
+                                overlay = results[0].plot()
+                            except Exception:
+                                overlay = frame
+                            placeholder.image(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB), use_column_width=True)
+                            time.sleep(0.03)
+                    finally:
+                        cap.release()
+                        placeholder.empty()
 
         with colB:
             st.markdown("**Or open the dedicated offline LiveCam app:**")
-            script_path = os.path.join(os.path.dirname(__file__), "webcam_demo.py")
+            script_path = os.path.join(get_app_dir(), "webcam_demo.py")
             if os.path.exists(script_path):
                 if st.button("🧭 Run Offline LiveCam (webcam_demo.py)"):
-                    subprocess.Popen(["python", script_path], shell=True)
-                    st.success("✅ Offline LiveCam opened in a new window.")
+                    # spawn a new process locally (works only on local machines)
+                    try:
+                        subprocess.Popen(["python", script_path])
+                        st.success("✅ Offline LiveCam opened in a new window (local only).")
+                    except Exception as e:
+                        st.error(f"Could not launch offline app: {e}")
             else:
-                st.error("❌ webcam_demo.py not found. Please ensure it’s in the same directory.")
+                st.info("❌ webcam_demo.py not found in Apps/. Place webcam_demo.py alongside this file for offline mode.")
+
+# End of file
