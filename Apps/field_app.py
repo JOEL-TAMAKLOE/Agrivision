@@ -17,6 +17,8 @@ from streamlit_folium import st_folium
 from datetime import datetime
 from PIL import Image
 from tempfile import NamedTemporaryFile
+import html
+import pathlib
 
 # ------------------------------------------------------------------
 # Utility helpers
@@ -28,21 +30,16 @@ def get_app_dir():
 def is_running_locally():
     """
     Decide if app is running locally (developer machine) or in Streamlit Cloud.
-    Streamlit cloud environment sets some env vars; this heuristic works well.
+    Conservative heuristic.
     """
-    # If HOME contains 'appuser' it's likely the cloud image user. Another robust method
-    # is to detect STREAMLIT_RUNTIME or STREAMLIT_SERVER_PORT, but those can be present locally.
-    # We'll use a conservative check:
     home = os.environ.get("HOME", "")
     if "appuser" in home or "streamlit" in home:
         return False
-    # If running on Windows or macOS, it's almost certainly local
     if platform.system().lower() in ("windows", "darwin"):
         return True
-    # Otherwise, default to True if common local envs are present
     return True
 
-def results_to_rows(results, frame_idx=0, gps=None):
+def results_to_rows(results, frame_idx=0, gps=None, source_file=None):
     rows = []
     boxes = results[0].boxes
     names = results[0].names if hasattr(results[0], "names") else model.names
@@ -55,34 +52,34 @@ def results_to_rows(results, frame_idx=0, gps=None):
             cls_id = int(boxes.cls[i].item())
             conf = float(boxes.conf[i].item())
             xyxy = boxes.xyxy[i].tolist()
-            rows.append([
+            row = [
                 frame_idx,
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 names.get(cls_id, str(cls_id)),
                 round(conf, 3),
                 *[round(v, 2) for v in xyxy],
                 lat, lon
-            ])
+            ]
+            if source_file:
+                row.append(source_file)
+            rows.append(row)
     return rows
 
 def parse_srt_for_gps_and_altitude(srt_text):
     """
-    Try to parse SRT text for GPS and optional Altitude.
+    Parse SRT text for GPS and optional Altitude.
     Returns list of tuples (lat, lon, alt_or_none) indexed by caption order.
     """
     gps_entries = []
-    # Look for lines like "GPS: 5.6037, -0.1870" or "GPS:lat,lon" and "Altitude: 15.5 m"
     latlon_pattern = re.compile(r"GPS[:\s]*([-\d\.]+)[,\s]+([-\d\.]+)")
     alt_pattern = re.compile(r"Altitude[:\s]*([-\d\.]+)")
-    # split into caption blocks
     blocks = re.split(r"\n\s*\n", srt_text.strip())
     for blk in blocks:
         lat, lon, alt = None, None, None
         m = latlon_pattern.search(blk)
         if m:
             try:
-                lat = float(m.group(1))
-                lon = float(m.group(2))
+                lat = float(m.group(1)); lon = float(m.group(2))
             except:
                 lat, lon = None, None
         m2 = alt_pattern.search(blk)
@@ -100,7 +97,6 @@ def height_advisory_bar(altitude_m: float):
     if altitude_m is None:
         st.info("No altitude metadata found for this video.")
         return
-    # clamp and compute percent of a max (60m)
     max_height = 60.0
     pct = min(max(altitude_m / max_height * 100.0, 0.0), 100.0)
     if altitude_m < 10:
@@ -119,17 +115,74 @@ def height_advisory_bar(altitude_m: float):
     <div style='text-align:center;font-weight:600;margin-top:6px;color:{color}'>{status}</div>
     """, unsafe_allow_html=True)
 
+def slugify_filename(name: str):
+    """Create a safe filename base from the provided name (without extension)."""
+    base = pathlib.Path(name).stem
+    safe = re.sub(r'[^A-Za-z0-9_.-]', '_', base)
+    return safe
+
+def make_csv_name(source_name: str, suffix="_detections.csv"):
+    """Return csv filename derived from source_name (or default timestamp)."""
+    if source_name:
+        base = slugify_filename(source_name)
+    else:
+        base = f"agri_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    return f"{base}{suffix}"
+
+# ------------------------------------------------------------------
+# Color palette + styles (light + dark)
+# ------------------------------------------------------------------
+PALETTE = {
+    "primary": "#2a9d8f",
+    "primary_dark": "#21867a",
+    "accent": "#f4a261",
+    "danger": "#e63946",
+    "muted": "#6c757d",
+    "bg_light": "#f6f8fa",
+    "card": "#ffffff",
+    "text": "#111827",
+    "dark_bg": "#0b1220",
+    "dark_card": "#0f1724",
+    "dark_text": "#e6eef6"
+}
+
+def inject_css(dark_mode: bool):
+    if dark_mode:
+        css = f"""
+        <style>
+        :root{{ --ag-primary: {PALETTE['primary']}; --bg: {PALETTE['dark_bg']}; --card: {PALETTE['dark_card']}; --text: {PALETTE['dark_text']}; }}
+        [data-testid="stSidebar"] {{ background-color: #071122; border-right: 1px solid rgba(255,255,255,0.03); }}
+        .stApp {{ background: linear-gradient(180deg, #071122 0%, #071a2a 100%); color: var(--text); }}
+        .card {{ background: var(--card); border-radius: 12px; padding: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }}
+        .logo-title {{"font-family":"Segoe UI", sans-serif}}
+        .stButton > button {{ background: {PALETTE['primary']}; color: white; border-radius: 10px; }}
+        .uploader {{ border: 2px dashed {PALETTE['primary']}; border-radius: 12px; padding: 12px; }}
+        hr{{ border-color: rgba(255,255,255,0.06) }}
+        </style>
+        """
+    else:
+        css = f"""
+        <style>
+        :root{{ --ag-primary: {PALETTE['primary']}; --bg: {PALETTE['bg_light']}; --card: {PALETTE['card']}; --text: {PALETTE['text']}; }}
+        [data-testid="stSidebar"] {{ background-color: {PALETTE['bg_light']}; border-right: 1px solid #e6e6e6; }}
+        .stApp {{ background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); color: var(--text); }}
+        .card {{ background: var(--card); border-radius: 12px; padding: 12px; box-shadow: 0 6px 18px rgba(16,24,40,0.04); }}
+        .stButton > button {{ background: {PALETTE['primary']}; color: white; border-radius: 10px; }}
+        .uploader {{ border: 2px dashed {PALETTE['primary']}; border-radius: 12px; padding: 12px; }}
+        hr{{ border-color: #eee }}
+        </style>
+        """
+    st.markdown(css, unsafe_allow_html=True)
+
 # ------------------------------------------------------------------
 # Load model (cached)
 # ------------------------------------------------------------------
 @st.cache_resource
 def load_model():
     try:
-        # model path relative to this file
         model_path = os.path.join(get_app_dir(), "..", "model", "best.pt")
         model_path = os.path.normpath(model_path)
         if not os.path.exists(model_path):
-            # try alternative (root-level model/)
             alt = os.path.join(os.getcwd(), "model", "best.pt")
             if os.path.exists(alt):
                 model_path = alt
@@ -142,61 +195,80 @@ def load_model():
 model = load_model()
 
 # ------------------------------------------------------------------
-# App UI
+# Page config + header
 # ------------------------------------------------------------------
-st.set_page_config(page_title="AgriVision", layout="wide")
-st.title("🌾 AgriVision: Smart Detection of Crop Stress & Pests")
+st.set_page_config(page_title="AgriVision", layout="wide", initial_sidebar_state="expanded")
+
+# Theme control (Dark / Light)
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+
+# Top bar with logo + animation
+def show_header():
+    # try to find logo files (B, C, D)
+    app_dir = os.path.join(os.getcwd(), "images")
+    logos = {
+        "B": os.path.join(app_dir, "imagehome.png"),
+        "C": os.path.join(app_dir, "image1.png"),
+        "D": os.path.join(app_dir, "image2.png"),
+    }
+    chosen = None
+    for k, p in logos.items():
+        if os.path.exists(p):
+            chosen = p
+            break
+
+    # header HTML with fade-in animation
+    header_html = """
+    <div style="display:flex;align-items:center;gap:16px;animation:fadeIn 0.9s ease-in-out;">
+      {logo_block}
+      <div style="line-height:1.05">
+        <h1 style="margin:0;padding:0;color:var(--ag-primary);">🌾 AgriVision</h1>
+        <div style="color:var(--text);font-weight:600">Smart Detection of Crop Stress & Pests</div>
+      </div>
+    </div>
+    <style>
+    @keyframes fadeIn {{ from {{ opacity:0; transform: translateY(-6px); }} to {{ opacity:1; transform: translateY(0); }} }}
+    </style>
+    """
+    if chosen:
+        logo_img = f'<img src="{chosen}" alt="AgriVision" style="height:64px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,0.08)"/>'
+    else:
+        # typographic fallback
+        logo_img = '<div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#2a9d8f,#21918a);color:white;border-radius:12px;font-weight:700;font-size:22px">AV</div>'
+    st.markdown(header_html.format(logo_block=logo_img), unsafe_allow_html=True)
+
+# inject chosen CSS theme
+inject_css(st.session_state.dark_mode)
+show_header()
+
+# small UI controls row
+col_a, col_b, col_c = st.columns([0.6, 0.6, 2.8])
+with col_a:
+    # Dark mode toggle
+    dm = st.checkbox("Dark mode", value=st.session_state.dark_mode)
+    if dm != st.session_state.dark_mode:
+        st.session_state.dark_mode = dm
+        inject_css(st.session_state.dark_mode)
+        st.experimental_rerun()
+with col_b:
+    st.markdown("")  # placeholder
+with col_c:
+    st.markdown("<div style='text-align:right;color:var(--muted)'>Built for field use • Offline capable • Lightweight</div>", unsafe_allow_html=True)
+
+st.write("")  # spacing
+
 st.write("Detects abiotic stress, insects, and diseases from field **images**, **drone footage**, or **live webcam feeds**.")
 
-# ---------------------------------------------------------
-# Custom UI aesthetics
-# ---------------------------------------------------------
-st.markdown("""
-<style>
-/* Smooth rounded containers */
-.css-1v0mbdj, .css-18e3th9, .css-1d391kg {
-    border-radius: 14px;
-}
-
-/* Sidebar styling */
-[data-testid="stSidebar"] {
-    background-color: #f6f8fa;
-    padding-top: 25px;
-    border-right: 1px solid #e3e3e3;
-}
-
-/* Titles */
-h1, h2, h3 {
-    font-family: "Segoe UI", sans-serif !important;
-}
-
-/* Buttons */
-.stButton > button {
-    background: #2a9d8f !important;
-    color: white !important;
-    border-radius: 10px !important;
-    border: none;
-    font-weight: 600;
-}
-.stButton > button:hover {
-    background: #21867a !important;
-}
-
-/* File uploader highlight */
-[data-testid="stFileUploader"] {
-    border: 2px dashed #2a9d8f !important;
-    border-radius: 12px;
-    padding: 18px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ---------------------------
 # Sidebar settings
 st.sidebar.header("⚙️ Inference Settings")
 conf_thres = st.sidebar.slider("Confidence threshold", 0.0, 1.0, 0.25, 0.01)
 imgsz = st.sidebar.select_slider("Inference image size", options=[320, 416, 512, 640, 768, 960], value=640)
 frame_skip = st.sidebar.number_input("Sample every Nth frame (video)", min_value=1, max_value=30, value=3)
+
+# small description under settings
+st.sidebar.markdown("<small style='color:var(--muted)'>Lower confidence finds more candidates; lower image size is faster.</small>", unsafe_allow_html=True)
+st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 
 # Mode
 mode = st.radio("Choose input type:", ["📸 Image", "🎥 Video", "🎦 Live Webcam"], horizontal=True)
@@ -205,7 +277,7 @@ mode = st.radio("Choose input type:", ["📸 Image", "🎥 Video", "🎦 Live We
 # IMAGE MODE
 # ----------------------------
 if mode == "📸 Image":
-    image_source = st.file_uploader("📷 Upload an image (jpg/png)", type=["jpg", "jpeg", "png"])
+    image_source = st.file_uploader("📷 Upload an image (jpg/png)", type=["jpg", "jpeg", "png"], help="Drag & drop or click to upload")
     if image_source:
         try:
             pil_img = Image.open(image_source).convert("RGB")
@@ -213,7 +285,7 @@ if mode == "📸 Image":
             st.error(f"Could not open image: {e}")
             st.stop()
 
-        # Convert PIL -> NumPy (RGB) -> BGR (expected by OpenCV / YOLO)
+        # Convert PIL -> NumPy (RGB) -> BGR (expected by YOLO)
         img_np = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
         # Run prediction
@@ -222,11 +294,10 @@ if mode == "📸 Image":
 
         # Show original and detections
         col1, col2 = st.columns(2)
-        col1.image(pil_img, caption="Original", use_column_width=True)
+        col1.image(pil_img, caption=f"Original — {image_source.name}", use_column_width=True)
 
         try:
             plotted = results[0].plot()  # BGR image
-            # Convert to RGB for display
             display_img = cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB)
             col2.image(display_img, caption="Detections", use_column_width=True)
         except Exception:
@@ -234,19 +305,18 @@ if mode == "📸 Image":
             col2.image(pil_img, use_column_width=True)
 
         # Export detections
-        rows = results_to_rows(results, frame_idx=0)
-        file_name_used = image_source.name
+        file_name_used = getattr(image_source, "name", None)
+        rows = results_to_rows(results, frame_idx=0, source_file=file_name_used)
         if rows:
             df_img = pd.DataFrame(rows, columns=[
-                "Frame", "Timestamp", "Class", "Confidence", "x1", "y1", "x2", "y2", "Latitude", "Longitude"
+                "Frame", "Timestamp", "Class", "Confidence", "x1", "y1", "x2", "y2", "Latitude", "Longitude", "Source_File"
             ])
-            df_img["Source_File"] = file_name_used
             st.subheader("📑 Detections")
             st.dataframe(df_img, use_container_width=True)
-            st.download_button("⬇️ Download detections (CSV)",
-                               df_img.to_csv(index=False).encode("utf-8"),
-                               file_name="image_detections.csv",
-                               mime="text/csv")
+            # create download filename
+            csv_name = make_csv_name(file_name_used)
+            st.download_button("⬇️ Download detections (CSV)", df_img.to_csv(index=False).encode("utf-8"),
+                               file_name=csv_name, mime="text/csv")
         else:
             st.info("No detections above the confidence threshold.")
 
@@ -260,14 +330,13 @@ elif mode == "🎥 Video":
 
     # Parse SRT if available for GPS & altitude
     avg_altitude = None
+    file_name_used = None
     if srt_file:
         try:
             srt_text = srt_file.read().decode("utf-8", errors="ignore")
             gps_entries = parse_srt_for_gps_and_altitude(srt_text)
             if gps_entries:
-                # gps_entries are (lat, lon, alt)
                 gps_per_frame = [(lat, lon) for (lat, lon, alt) in gps_entries]
-                # compute average altitude when available
                 alts = [alt for (_, _, alt) in gps_entries if alt is not None]
                 if alts:
                     avg_altitude = float(np.mean(alts))
@@ -276,7 +345,7 @@ elif mode == "🎥 Video":
             st.sidebar.warning(f"Could not parse SRT file: {e}")
 
     if video_file:
-        file_name_used = video_file.name
+        file_name_used = getattr(video_file, "name", None)
         with NamedTemporaryFile(delete=False, suffix=os.path.splitext(video_file.name)[1]) as tmp:
             tmp.write(video_file.read())
             tmp_path = tmp.name
@@ -301,7 +370,8 @@ elif mode == "🎥 Video":
                     overlay = frame.copy()
                 frames.append(overlay)
                 gps_tuple = gps_per_frame[frame_idx] if frame_idx < len(gps_per_frame) else None
-                detections.extend(results_to_rows(results, frame_idx, gps_tuple))
+                rows = results_to_rows(results, frame_idx, gps_tuple, source_file=file_name_used)
+                detections.extend(rows)
             frame_idx += 1
 
         cap.release()
@@ -313,9 +383,8 @@ elif mode == "🎥 Video":
             st.stop()
 
         df = pd.DataFrame(detections, columns=[
-            "Frame", "Timestamp", "Class", "Confidence", "x1", "y1", "x2", "y2", "Latitude", "Longitude"
+            "Frame", "Timestamp", "Class", "Confidence", "x1", "y1", "x2", "y2", "Latitude", "Longitude", "Source_File"
         ])
-        df["Source_File"] = file_name_used
 
         # Show optional altitude advisory
         if avg_altitude is not None:
@@ -329,7 +398,6 @@ elif mode == "🎥 Video":
 
         video_col, map_col = st.columns([1.5, 1.5])
         if replay_frame < len(frames):
-            # frames are BGR — convert to RGB for display
             video_col.image(cv2.cvtColor(frames[replay_frame], cv2.COLOR_BGR2RGB),
                             caption=f"Frame {replay_frame}", use_column_width=True)
 
@@ -358,10 +426,10 @@ elif mode == "🎥 Video":
 
         st.subheader("📑 Detections Table")
         st.dataframe(df, use_container_width=True)
+        csv_name = make_csv_name(file_name_used if file_name_used else "video")
         st.download_button("⬇️ Download detections (CSV)",
                            df.to_csv(index=False).encode("utf-8"),
-                           file_name="video_detections.csv",
-                           mime="text/csv")
+                           file_name=csv_name, mime="text/csv")
 
 # ----------------------------
 # LIVE WEBCAM MODE
@@ -451,11 +519,10 @@ else:
 # Footer
 # ----------------------------
 st.markdown("""
-<hr style='margin-top:40px;'>
-<div style='text-align:center; font-size:14px; color: #888;'>
-    Developed & Built by <strong>Joel Tamakloe</strong>
+<hr style='margin-top:32px;'>
+<div style='display:flex;justify-content:space-between;align-items:center'>
+  <div style='font-size:14px;color:#6b7280'>Developed & Built by <strong>Joel Tamakloe</strong> ❤️</div>
 </div>
 <br>
 """, unsafe_allow_html=True)
-
 # End of file
