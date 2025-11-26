@@ -148,6 +148,50 @@ st.set_page_config(page_title="AgriVision", layout="wide")
 st.title("🌾 AgriVision: Smart Detection of Crop Stress & Pests")
 st.write("Detects abiotic stress, insects, and diseases from field **images**, **drone footage**, or **live webcam feeds**.")
 
+# ---------------------------------------------------------
+# Custom UI aesthetics
+# ---------------------------------------------------------
+st.markdown("""
+<style>
+/* Smooth rounded containers */
+.css-1v0mbdj, .css-18e3th9, .css-1d391kg {
+    border-radius: 14px;
+}
+
+/* Sidebar styling */
+[data-testid="stSidebar"] {
+    background-color: #f6f8fa;
+    padding-top: 25px;
+    border-right: 1px solid #e3e3e3;
+}
+
+/* Titles */
+h1, h2, h3 {
+    font-family: "Segoe UI", sans-serif !important;
+}
+
+/* Buttons */
+.stButton > button {
+    background: #2a9d8f !important;
+    color: white !important;
+    border-radius: 10px !important;
+    border: none;
+    font-weight: 600;
+}
+.stButton > button:hover {
+    background: #21867a !important;
+}
+
+/* File uploader highlight */
+[data-testid="stFileUploader"] {
+    border: 2px dashed #2a9d8f !important;
+    border-radius: 12px;
+    padding: 18px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------
 # Sidebar settings
 st.sidebar.header("⚙️ Inference Settings")
 conf_thres = st.sidebar.slider("Confidence threshold", 0.0, 1.0, 0.25, 0.01)
@@ -191,10 +235,12 @@ if mode == "📸 Image":
 
         # Export detections
         rows = results_to_rows(results, frame_idx=0)
+        file_name_used = image_source.name
         if rows:
             df_img = pd.DataFrame(rows, columns=[
                 "Frame", "Timestamp", "Class", "Confidence", "x1", "y1", "x2", "y2", "Latitude", "Longitude"
             ])
+            df_img["Source_File"] = file_name_used
             st.subheader("📑 Detections")
             st.dataframe(df_img, use_container_width=True)
             st.download_button("⬇️ Download detections (CSV)",
@@ -230,6 +276,7 @@ elif mode == "🎥 Video":
             st.sidebar.warning(f"Could not parse SRT file: {e}")
 
     if video_file:
+        file_name_used = video_file.name
         with NamedTemporaryFile(delete=False, suffix=os.path.splitext(video_file.name)[1]) as tmp:
             tmp.write(video_file.read())
             tmp_path = tmp.name
@@ -268,6 +315,7 @@ elif mode == "🎥 Video":
         df = pd.DataFrame(detections, columns=[
             "Frame", "Timestamp", "Class", "Confidence", "x1", "y1", "x2", "y2", "Latitude", "Longitude"
         ])
+        df["Source_File"] = file_name_used
 
         # Show optional altitude advisory
         if avg_altitude is not None:
@@ -398,5 +446,16 @@ else:
                         st.error(f"Could not launch offline app: {e}")
             else:
                 st.info("❌ webcam_demo.py not found in Apps/. Place webcam_demo.py alongside this file for offline mode.")
+
+# ----------------------------
+# Footer
+# ----------------------------
+st.markdown("""
+<hr style='margin-top:40px;'>
+<div style='text-align:center; font-size:14px; color: #888;'>
+    Developed & Built by <strong>Joel Tamakloe</strong>
+</div>
+<br>
+""", unsafe_allow_html=True)
 
 # End of file
