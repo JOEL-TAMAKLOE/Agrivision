@@ -205,22 +205,14 @@ if "dark_mode" not in st.session_state:
 
 # Top bar with logo + animation
 def show_header():
-    app_dir = os.path.join(os.path.dirname(__file__), "images")
-    logos = {
-        "B": os.path.join(app_dir, "imagehome.png"),
-        "C": os.path.join(app_dir, "image1.png"),
-        "D": os.path.join(app_dir, "image2.png"),
-    }
-    chosen = None
-    for k, p in logos.items():
-        if os.path.exists(p):
-            chosen = p
-            break
+    app_dir = os.path.join(os.getcwd(), "images")
+    logo_path = os.path.join(app_dir, "image1.png")  # 
 
-    if chosen:
-        st.image(chosen, width=120)
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=260)
     else:
-        st.write("No logo found")
+        st.write("⚠️ Logo not found in /images folder")
+
 
     # header HTML with fade-in animation
     header_html = """
