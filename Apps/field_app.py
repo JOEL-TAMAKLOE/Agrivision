@@ -205,21 +205,13 @@ if "dark_mode" not in st.session_state:
 
 # Top bar with logo + animation
 def show_header():
-    # directory where THIS script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    app_dir = os.path.join(os.getcwd(), "images")
+    chosen = None  
 
-    # go UP one folder (from Apps/ to agrivision/)
-    project_root = os.path.abspath(os.path.join(script_dir, ".."))
-
-    # images folder inside project root
-    images_dir = os.path.join(project_root, "images")
-
-    logo_path = os.path.join(images_dir, "image1.png")
-
-    st.write(f"Searching for logo at: {logo_path}") 
+    logo_path = os.path.join(app_dir, "image1.png")
 
     if os.path.exists(logo_path):
-        st.image(logo_path, width=260)
+        chosen = "images/image1.png" 
     else:
         st.error(f"⚠️ Logo not found: {logo_path}")
 
@@ -236,11 +228,12 @@ def show_header():
     @keyframes fadeIn {{ from {{ opacity:0; transform: translateY(-6px); }} to {{ opacity:1; transform: translateY(0); }} }}
     </style>
     """
+
     if chosen:
         logo_img = f'<img src="{chosen}" alt="AgriVision" style="height:64px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,0.08)"/>'
     else:
-        # typographic fallback
         logo_img = '<div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#2a9d8f,#21918a);color:white;border-radius:12px;font-weight:700;font-size:22px">AV</div>'
+
     st.markdown(header_html.format(logo_block=logo_img), unsafe_allow_html=True)
 
 # inject chosen CSS theme
