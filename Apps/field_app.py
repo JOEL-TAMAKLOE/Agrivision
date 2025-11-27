@@ -2,6 +2,13 @@
 import os
 os.environ["YOLO_CONFIG_DIR"] = "/tmp/Ultralytics"
 
+
+# ----------------------------
+# SAFE global fix to prevent NameError
+# ----------------------------
+chosen = None
+# ----------------------------
+
 import streamlit as st
 from ultralytics import YOLO
 import cv2
@@ -236,7 +243,7 @@ def show_header():
 
     st.markdown(header_html.format(logo_block=logo_img), unsafe_allow_html=True)
 
-# inject chosen CSS theme
+# inject CSS theme
 inject_css(st.session_state.dark_mode)
 show_header()
 
