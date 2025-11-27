@@ -205,15 +205,23 @@ if "dark_mode" not in st.session_state:
 
 # Top bar with logo + animation
 def show_header():
+    # directory where THIS script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    app_dir = os.path.join(script_dir, "images")
 
-    logo_path = os.path.join(app_dir, "image1.png")
+    # go UP one folder (from Apps/ to agrivision/)
+    project_root = os.path.abspath(os.path.join(script_dir, ".."))
+
+    # images folder inside project root
+    images_dir = os.path.join(project_root, "images")
+
+    logo_path = os.path.join(images_dir, "image1.png")
+
+    st.write(f"Searching for logo at: {logo_path}") 
 
     if os.path.exists(logo_path):
         st.image(logo_path, width=260)
     else:
-        st.write(f"⚠️ Logo not found: {logo_path}")
+        st.error(f"⚠️ Logo not found: {logo_path}")
 
     # header HTML with fade-in animation
     header_html = """
