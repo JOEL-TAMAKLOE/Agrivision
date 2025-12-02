@@ -216,38 +216,34 @@ if "dark_mode" not in st.session_state:
 
 # Top bar with logo + animation
 def show_header():
-    # Folder where your images live
     img_dir = os.path.join(os.getcwd(), "images")
-
-    # Pick the image you want
-    logo_filename = "image2.png"   # ← change this when needed
+    logo_filename = "image2.png"  
     logo_path = os.path.join(img_dir, logo_filename)
 
     if not os.path.exists(logo_path):
         st.error(f"⚠️ Logo not found: {logo_path}")
         return
 
-    # Load logo image
-    img = Image.open(logo_path)
+    # Load and resize logo
+    img = Image.open(logo_path).convert("RGBA")
+    img = img.resize((70, 70))
 
-    # Resize to match header height
-    img = img.resize((70, 70))  # Adjust if needed (height 70px)
-
-    # Convert to base64 for embedding
+    # Convert to base64
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     base64_img = base64.b64encode(buffer.getvalue()).decode()
 
-    # HTML block with round logo + fade-in animation
+    # Correct HTML block
     header_html = f"""
-    <div style="display:flex;align-items:center;gap:16px;animation:fadeIn 0.9s ease-in-out;">
+    <div style="display:flex;align-items:center;gap:18px;animation:fadeIn 0.9s ease-in-out;">
         <img src="data:image/png;base64,{base64_img}" 
-             style="height:70px;width:70px;border-radius:50%;object-fit:cover;
-                    box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
-
-        <div style="line-height:1.05">
-            <h1 style="margin:0;padding:0;color:var(--ag-primary);">🌾 AgriVision</h1>
-            <div style="color:var(--text);font-weight:600">
+             style="height:70px;width:70px;border-radius:50%;
+                    object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
+        <div style="line-height:1.05;">
+            <h1 style="margin:0;padding:0;color:var(--ag-primary);font-size:2.3rem;">
+                🌾 AgriVision
+            </h1>
+            <div style="color:var(--text);font-weight:600;font-size:1.1rem;">
                 Smart Detection of Crop Stress & Pests
             </div>
         </div>
