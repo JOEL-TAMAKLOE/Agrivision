@@ -27,6 +27,9 @@ from tempfile import NamedTemporaryFile
 import html
 import pathlib
 import base64
+from PIL import Image
+import os
+from io import BytesIO
 
 # ------------------------------------------------------------------
 # Utility helpers
@@ -213,39 +216,38 @@ if "dark_mode" not in st.session_state:
 
 # Top bar with logo + animation
 def show_header():
-    app_dir = os.path.join(os.getcwd(), "images")
-    logo_path = os.path.join(app_dir, "image2.png")
+    # Folder where your images live
+    img_dir = os.path.join(os.getcwd(), "images")
 
-    def load_base64(path):
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
+    # Pick the image you want
+    logo_filename = "image2.png"   # ← change this when needed
+    logo_path = os.path.join(img_dir, logo_filename)
 
-    if os.path.exists(logo_path):
-        logo_b64 = load_base64(logo_path)
-        
-        # Height adjusted to match text (~46px), circular shape
-        logo_img = f'''
-            <img src="data:image/png;base64,{logo_b64}" 
-                 alt="AgriVision" 
-                 style="height:46px; width:46px; border-radius:50%; object-fit:cover;
-                        box-shadow:0 6px 18px rgba(0,0,0,0.12);" />
-        '''
-    else:
+    if not os.path.exists(logo_path):
         st.error(f"⚠️ Logo not found: {logo_path}")
-        logo_img = '''
-            <div style="width:46px;height:46px;background:#2a9d8f;color:white;
-                        display:flex;align-items:center;justify-content:center;
-                        border-radius:50%;font-size:20px;font-weight:bold;">
-                AV
-            </div>
-        '''
+        return
 
+    # Load logo image
+    img = Image.open(logo_path)
+
+    # Resize to match header height
+    img = img.resize((70, 70))  # Adjust if needed (height 70px)
+
+    # Convert to base64 for embedding
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    base64_img = base64.b64encode(buffer.getvalue()).decode()
+
+    # HTML block with round logo + fade-in animation
     header_html = f"""
-    <div style="display:flex;align-items:center;gap:14px;animation:fadeIn 0.8s ease-in-out;">
-        {logo_img}
+    <div style="display:flex;align-items:center;gap:16px;animation:fadeIn 0.9s ease-in-out;">
+        <img src="data:image/png;base64,{base64_img}" 
+             style="height:70px;width:70px;border-radius:50%;object-fit:cover;
+                    box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
+
         <div style="line-height:1.05">
-            <h1 style="margin:0;padding:0;color:#2a9d8f;font-size:40px;">AgriVision</h1>
-            <div style="color:#555;font-weight:600;font-size:18px;">
+            <h1 style="margin:0;padding:0;color:var(--ag-primary);">🌾 AgriVision</h1>
+            <div style="color:var(--text);font-weight:600">
                 Smart Detection of Crop Stress & Pests
             </div>
         </div>
@@ -254,12 +256,13 @@ def show_header():
     <style>
     @keyframes fadeIn {{
         from {{ opacity:0; transform: translateY(-6px); }}
-        to   {{ opacity:1; transform: translateY(0); }}
+        to {{ opacity:1; transform: translateY(0); }}
     }}
     </style>
     """
 
     st.markdown(header_html, unsafe_allow_html=True)
+
 
 # inject CSS theme
 inject_css(st.session_state.dark_mode)
