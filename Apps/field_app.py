@@ -214,41 +214,47 @@ if "dark_mode" not in st.session_state:
 # Top bar with logo + animation
 def show_header():
     app_dir = os.path.join(os.getcwd(), "images")
-    chosen_path = os.path.join(app_dir, "image1.png")
+    logo_path = os.path.join(app_dir, "image1.png")
 
-    # Encode image as base64 so Streamlit can display it in HTML
-    def encode_image(img_path):
-        try:
-            with open(img_path, "rb") as f:
-                data = f.read()
-            return base64.b64encode(data).decode()
-        except Exception:
-            return None
+    def load_base64(path):
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
 
-    encoded = encode_image(chosen_path)
-
-    if encoded is not None:
-        logo_img = f'<img src="data:image/png;base64,{encoded}" alt="AgriVision" style="height:58px;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,0.10)"/>'
+    if os.path.exists(logo_path):
+        logo_b64 = load_base64(logo_path)
+        
+        # Height adjusted to match text (~46px), circular shape
+        logo_img = f'''
+            <img src="data:image/png;base64,{logo_b64}" 
+                 alt="AgriVision" 
+                 style="height:46px; width:46px; border-radius:50%; object-fit:cover;
+                        box-shadow:0 6px 18px rgba(0,0,0,0.12);" />
+        '''
     else:
-        logo_img = """
-        <div style="width:58px;height:58px;display:flex;align-items:center;justify-content:center;
-                    background:linear-gradient(135deg,#2a9d8f,#21918a);color:white;border-radius:12px;
-                    font-weight:700;font-size:22px">AV</div>
-        """
+        st.error(f"⚠️ Logo not found: {logo_path}")
+        logo_img = '''
+            <div style="width:46px;height:46px;background:#2a9d8f;color:white;
+                        display:flex;align-items:center;justify-content:center;
+                        border-radius:50%;font-size:20px;font-weight:bold;">
+                AV
+            </div>
+        '''
 
     header_html = f"""
-    <div style="display:flex;align-items:center;gap:16px;animation:fadeIn 0.9s ease-in-out;">
-      {logo_img}
-      <div style="line-height:1.05">
-        <h1 style="margin:0;padding:0;color:var(--ag-primary);">🌾 AgriVision</h1>
-        <div style="color:var(--text);font-weight:600">Smart Detection of Crop Stress & Pests</div>
-      </div>
+    <div style="display:flex;align-items:center;gap:14px;animation:fadeIn 0.8s ease-in-out;">
+        {logo_img}
+        <div style="line-height:1.05">
+            <h1 style="margin:0;padding:0;color:#2a9d8f;font-size:40px;">AgriVision</h1>
+            <div style="color:#555;font-weight:600;font-size:18px;">
+                Smart Detection of Crop Stress & Pests
+            </div>
+        </div>
     </div>
 
     <style>
     @keyframes fadeIn {{
         from {{ opacity:0; transform: translateY(-6px); }}
-        to {{ opacity:1; transform: translateY(0); }}
+        to   {{ opacity:1; transform: translateY(0); }}
     }}
     </style>
     """
