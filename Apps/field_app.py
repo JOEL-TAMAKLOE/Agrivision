@@ -214,7 +214,7 @@ if "dark_mode" not in st.session_state:
 # Top bar with logo + animation
 def show_header():
     app_dir = os.path.join(os.getcwd(), "images")
-    logo_path = os.path.join(app_dir, "imagehome.png")
+    logo_path = os.path.join(app_dir, "image1.png")
 
     def load_base64(path):
         with open(path, "rb") as f:
