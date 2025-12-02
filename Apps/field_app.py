@@ -26,6 +26,7 @@ from PIL import Image
 from tempfile import NamedTemporaryFile
 import html
 import pathlib
+import base64
 
 # ------------------------------------------------------------------
 # Utility helpers
@@ -213,35 +214,46 @@ if "dark_mode" not in st.session_state:
 # Top bar with logo + animation
 def show_header():
     app_dir = os.path.join(os.getcwd(), "images")
-    chosen = None  
+    chosen_path = os.path.join(app_dir, "image1.png")
 
-    logo_path = os.path.join(app_dir, "image1.png")
+    # Encode image as base64 so Streamlit can display it in HTML
+    def encode_image(img_path):
+        try:
+            with open(img_path, "rb") as f:
+                data = f.read()
+            return base64.b64encode(data).decode()
+        except Exception:
+            return None
 
-    if os.path.exists(logo_path):
-        chosen = "images/image1.png" 
+    encoded = encode_image(chosen_path)
+
+    if encoded is not None:
+        logo_img = f'<img src="data:image/png;base64,{encoded}" alt="AgriVision" style="height:58px;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,0.10)"/>'
     else:
-        st.error(f"⚠️ Logo not found: {logo_path}")
+        logo_img = """
+        <div style="width:58px;height:58px;display:flex;align-items:center;justify-content:center;
+                    background:linear-gradient(135deg,#2a9d8f,#21918a);color:white;border-radius:12px;
+                    font-weight:700;font-size:22px">AV</div>
+        """
 
-    # header HTML with fade-in animation
-    header_html = """
+    header_html = f"""
     <div style="display:flex;align-items:center;gap:16px;animation:fadeIn 0.9s ease-in-out;">
-      {logo_block}
+      {logo_img}
       <div style="line-height:1.05">
         <h1 style="margin:0;padding:0;color:var(--ag-primary);">🌾 AgriVision</h1>
         <div style="color:var(--text);font-weight:600">Smart Detection of Crop Stress & Pests</div>
       </div>
     </div>
+
     <style>
-    @keyframes fadeIn {{ from {{ opacity:0; transform: translateY(-6px); }} to {{ opacity:1; transform: translateY(0); }} }}
+    @keyframes fadeIn {{
+        from {{ opacity:0; transform: translateY(-6px); }}
+        to {{ opacity:1; transform: translateY(0); }}
+    }}
     </style>
     """
 
-    if chosen:
-        logo_img = f'<img src="{chosen}" alt="AgriVision" style="height:64px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,0.08)"/>'
-    else:
-        logo_img = '<div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#2a9d8f,#21918a);color:white;border-radius:12px;font-weight:700;font-size:22px">AV</div>'
-
-    st.markdown(header_html.format(logo_block=logo_img), unsafe_allow_html=True)
+    st.markdown(header_html, unsafe_allow_html=True)
 
 # inject CSS theme
 inject_css(st.session_state.dark_mode)
